@@ -5,16 +5,16 @@ import '../styles/main_style.css';
 function Header() {
   return (
     <header>
-        <div className="header-content">
-            <div className="logo">
-                <h1>КЛИЕНТ</h1>
-            </div>
-            <ul className="nav-area">
-                <li><Link to="/">Главная</Link></li>
-                <li><Link to="/tables">Таблицы</Link></li>
-                <li><Link to="/login">Вход</Link></li>
-            </ul>
+      <div className="header-content">
+        <div className="logo">
+          <h1>КЛИЕНТ</h1>
         </div>
+        <ul className="nav-area">
+          <li><Link to="/">Главная</Link></li>
+          <li><Link to="/tables">Таблицы</Link></li>
+          <li><Link to="/login">Аккаунт</Link></li>
+        </ul>
+      </div>
     </header>
   );
 }

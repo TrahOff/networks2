@@ -1,9 +1,14 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import '../styles/table.css';
 import DynamicTable from '../components/DynamicTable';
 import DynamicFilterForm from '../components/DynamicFylterForm';
 import DynamicPagination from '../components/DynamicPagination';
 import DynamicItemsPerPage from '../components/DynamicItemsPerPage';
+import DynamicModal from '../components/DynamicModal';
+
+const REFRESH_INTERVAL = 5000; // 5 секунд
 
 const Groups = () => {
     const [groups, setGroups] = useState([]);
@@ -28,6 +33,23 @@ const Groups = () => {
         min_admission_year: '',
         max_admission_year: ''
     });
+    const [selectedGroup, setSelectedGroup] = useState(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [isCreating, setIsCreating] = useState(false);
+
+    const token = useSelector(state => state.auth.token);
+    const userData = useSelector(state => state.auth.user);
+    const navigate = useNavigate();
+
+    const groupFields = useMemo(() => [
+        { key: 'id', label: 'ID' },
+        { key: 'group_name', label: 'Название группы' },
+        { key: 'course', label: 'Курс' },
+        { key: 'admission_year', label: 'Год поступления' },
+        { key: 'university', label: 'Университет' },
+        { key: 'curator_name', label: 'Куратор' },
+        { key: 'curator_photo', label: 'Фото куратора', type: 'image' }
+    ], []);
 
     const filterFields = useMemo(() => [
         {
@@ -108,7 +130,7 @@ const Groups = () => {
         return 'групп';
     };
 
-    const fetchGroups = async (params) => {
+    const fetchGroups = useCallback(async (params) => {
         setError(null);
         try {
             const url = new URL('http://localhost:8000/group');
@@ -134,7 +156,7 @@ const Groups = () => {
             setError(error.message);
             console.error(error);
         }
-    };
+    }, []);
 
     const handleFilterChange = (field, value) => {
         setFilters(prev => ({
@@ -148,8 +170,181 @@ const Groups = () => {
         setPage(1);
     };
 
+    const handleRowClick = useCallback((groupId) => {
+        const group = groups.find(g => g.id === groupId);
+        setSelectedGroup(group);
+        setIsEditing(true);
+        setIsCreating(false);
+    }, [groups]);
+
+    const handleCloseModal = useCallback(() => {
+        setSelectedGroup(null);
+        setIsEditing(false);
+        setIsCreating(false);
+    }, []);
+
+    const handleUpdate = useCallback((fieldKey, value) => {
+        if (fieldKey === 'confirm') return;
+        setSelectedGroup(prev => ({
+            ...prev,
+            [fieldKey]: value
+        }));
+    }, []);
+
+    const handleDelete = useCallback(async (groupId) => {
+        if (!token) {
+            navigate('/login', { replace: true });
+            return;
+        }
+
+        try {
+            const response = await fetch(`http://localhost:8000/group/delete?element_id=${groupId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+                credentials: 'include'
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                const errorMessage = errorData?.detail || errorData?.message || 'Произошла ошибка при удалении группы';
+                throw new Error(errorMessage);
+            }
+
+            await fetchGroups({
+                group_id: filters.group_id,
+                group_name: filters.group_name,
+                course: filters.course,
+                admission_year: filters.admission_year,
+                university: filters.university,
+                curator_name: filters.curator_name,
+                curator_photo: filters.curator_photo,
+                min_course: filters.min_course,
+                max_course: filters.max_course,
+                min_admission_year: filters.min_admission_year,
+                max_admission_year: filters.max_admission_year,
+                sort_by: sortConfig.key,
+                sort_order: sortConfig.direction,
+                limit: itemsPerPage,
+                offset: (page - 1) * itemsPerPage
+            });
+
+            setGroups(prev => prev.filter(group => group.id !== groupId));
+            setTotal(prev => prev - 1);
+            setSelectedGroup(null);
+        } catch (error) {
+            setError(error.message);
+            console.error('Ошибка при удалении группы:', error);
+        }
+    }, [filters, sortConfig, page, itemsPerPage, fetchGroups, token]);
+
+    const handleSaveChanges = useCallback(async () => {
+        if (!token) {
+            navigate('/login', { replace: true });
+            return;
+        }
+        console.log(token);
+        console.log(selectedGroup);
+
+        try {
+            const response = await fetch(`http://localhost:8000/group/update?element_id=${selectedGroup.id}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify(selectedGroup)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Произошла ошибка при обновлении');
+            }
+
+            await fetchGroups({
+                group_id: filters.group_id,
+                group_name: filters.group_name,
+                course: filters.course,
+                admission_year: filters.admission_year,
+                university: filters.university,
+                curator_name: filters.curator_name,
+                curator_photo: filters.curator_photo,
+                min_course: filters.min_course,
+                max_course: filters.max_course,
+                min_admission_year: filters.min_admission_year,
+                max_admission_year: filters.max_admission_year,
+                sort_by: sortConfig.key,
+                sort_order: sortConfig.direction,
+                limit: itemsPerPage,
+                offset: (page - 1) * itemsPerPage
+            });
+
+            setSelectedGroup(null);
+        } catch (error) {
+            setError(error.message);
+            console.error('Ошибка при обновлении группы:', error);
+        }
+    }, [selectedGroup, filters, sortConfig, page, itemsPerPage, fetchGroups, token]);
+
+    const handleCreate = useCallback(() => {
+        setIsCreating(true);
+        setSelectedGroup(null);
+    }, []);
+
+    const handleCreateSubmit = useCallback(async (groupData) => {
+        if (!token) {
+            navigate('/login', { replace: true });
+            return;
+        }
+
+        try {
+            const response = await fetch('http://localhost:8000/group/create', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify(groupData)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                const errorMessage = errorData?.detail || errorData?.message || 'Произошла ошибка при создании группы';
+                throw new Error(errorMessage);
+            }
+
+            await fetchGroups({
+                group_id: filters.group_id,
+                group_name: filters.group_name,
+                course: filters.course,
+                admission_year: filters.admission_year,
+                university: filters.university,
+                curator_name: filters.curator_name,
+                curator_photo: filters.curator_photo,
+                min_course: filters.min_course,
+                max_course: filters.max_course,
+                min_admission_year: filters.min_admission_year,
+                max_admission_year: filters.max_admission_year,
+                sort_by: sortConfig.key,
+                sort_order: sortConfig.direction,
+                limit: itemsPerPage,
+                offset: (page - 1) * itemsPerPage
+            });
+
+            setIsCreating(false);
+        } catch (error) {
+            setError(error.message);
+            console.error('Ошибка при создании группы:', error);
+        }
+    }, [filters, sortConfig, page, itemsPerPage, fetchGroups, token]);
+
     useEffect(() => {
         document.title = "группы";
+
+        // Сначала выполним первоначальную загрузку
         fetchGroups({
             group_id: filters.group_id,
             group_name: filters.group_name,
@@ -167,7 +362,32 @@ const Groups = () => {
             limit: itemsPerPage,
             offset: (page - 1) * itemsPerPage
         });
-    }, [sortConfig, page, itemsPerPage, filters]);
+
+        // Создаем интервал для периодического обновления
+        const interval = setInterval(() => {
+            console.log('🔄 Автоматическое обновление данных...');
+            fetchGroups({
+                group_id: filters.group_id,
+                group_name: filters.group_name,
+                course: filters.course,
+                admission_year: filters.admission_year,
+                university: filters.university,
+                curator_name: filters.curator_name,
+                curator_photo: filters.curator_photo,
+                min_course: filters.min_course,
+                max_course: filters.max_course,
+                min_admission_year: filters.min_admission_year,
+                max_admission_year: filters.max_admission_year,
+                sort_by: sortConfig.key,
+                sort_order: sortConfig.direction,
+                limit: itemsPerPage,
+                offset: (page - 1) * itemsPerPage
+            });
+        }, REFRESH_INTERVAL);
+
+        // Очищаем интервал при размонтировании компонента
+        return () => clearInterval(interval);
+    }, [sortConfig, page, itemsPerPage, filters, fetchGroups]);
 
     const handleSort = (key) => {
         let direction = 'asc';
@@ -186,9 +406,15 @@ const Groups = () => {
 
     return (
         <>
-            <h2>Группы</h2>
+            <h2>группы</h2>
             <div className="table-container">
                 <div className="header-wrapper">
+                    <button
+                        onClick={handleCreate}
+                        className="create-button"
+                    >
+                        Создать группу
+                    </button>
                     <DynamicItemsPerPage
                         itemsPerPage={itemsPerPage}
                         onItemsPerPageChange={handleItemsPerPageChange}
@@ -206,13 +432,14 @@ const Groups = () => {
                 />
 
                 {error ? (
-                    <p className="error">Ошибка: {error}</p>
+                    <p className="error">{error}</p>
                 ) : (
                     <DynamicTable
                         headers={tableHeaders}
                         data={groups}
                         onSort={handleSort}
                         sortConfig={sortConfig}
+                        onRowClick={handleRowClick}
                     />
                 )}
 
@@ -222,6 +449,34 @@ const Groups = () => {
                     onPageChange={(newPage) => setPage(newPage)}
                 />
             </div>
+
+            <DynamicModal
+                isOpen={isCreating}
+                onClose={handleCloseModal}
+                data={{
+                    group_name: '',
+                    course: '',
+                    admission_year: '',
+                    university: '',
+                    curator_name: '',
+                    curator_photo: ''
+                }}
+                type="group"
+                fields={groupFields}
+                onUpdate={handleUpdate}
+                onSave={handleCreateSubmit}
+            />
+
+            <DynamicModal
+                isOpen={isEditing && !!selectedGroup}
+                onClose={handleCloseModal}
+                data={selectedGroup || {}}
+                type="group"
+                fields={groupFields}
+                onUpdate={handleUpdate}
+                onDelete={handleDelete}
+                onSave={handleSaveChanges}
+            />
         </>
     );
 };

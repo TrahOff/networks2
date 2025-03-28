@@ -1,5 +1,4 @@
 from fastapi import HTTPException
-from sqlalchemy.orm import defer
 
 
 async def check_existing_element(conn, model):
@@ -51,13 +50,13 @@ async def check_everything(conn, model, dependencies, element_id):
 
     if model.unic_elements():
         existing_element = await check_existing_element(conn, model)
-
         if existing_element:
-            detail = ""
-            for key, value in existing_element.items():
-                if key in model.unic_elements() and value == getattr(model, key):
-                    detail = f"поле {key} со значением {value} уже занято (оно должно быть уникально)"
-            raise HTTPException(status_code=412, detail=detail)
+            if existing_element['id'] != element_id:
+                detail = ""
+                for key, value in existing_element.items():
+                    if key in model.unic_elements() and value == getattr(model, key):
+                        detail = f"поле {key} со значением {value} уже занято (оно должно быть уникально)"
+                raise HTTPException(status_code=412, detail=detail)
 
     existing_element = await check_exact_duplicate(conn, model)
     if existing_element:

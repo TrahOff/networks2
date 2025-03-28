@@ -59,5 +59,7 @@ async def delete_student_route(
         _current_user: Users = Depends(get_current_user),
         element_id: int = Query(..., description="уникальный идентификатор записи в бд")
 ):
+    print(f'current user = {_current_user}')
+    print(f'element_id = {element_id}')
     result = await delete_element_request(Student, element_id)
     return result

@@ -1,20 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { useFormik } from 'formik';
 import * as Yup from 'yup';
+import { useDispatch } from 'react-redux';
+import { setToken, setLoading, setError } from '../../redux/authSlice';
 import '../../styles/user_form.css';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 const Login = () => {
     const [errorMessage, setErrorMessage] = useState('');
+    const [showRegistrationSuccess, setShowRegistrationSuccess] = useState(false);
+    const dispatch = useDispatch();
+    const navigate = useNavigate();
+    const location = useLocation();
 
     useEffect(() => {
         document.title = "Авторизация";
-        
         const token = localStorage.getItem('access_token');
-        console.log(token);
         if (token) {
-            console.log('Токен загружен:', token);
+            dispatch(setToken(token));
+            navigate('/profile', { replace: true });
         }
-    }, []);
+
+        const fromRegistration = location.state?.fromRegistration;
+        if (fromRegistration) {
+            setShowRegistrationSuccess(true);
+            const timer = setTimeout(() => {
+                setShowRegistrationSuccess(false);
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [dispatch, location.state]);
 
     const formik = useFormik({
         initialValues: {
@@ -36,6 +51,7 @@ const Login = () => {
         }),
         onSubmit: async (values) => {
             try {
+                dispatch(setLoading(true));
                 const response = await fetch('http://localhost:8000/users/login', {
                     method: 'POST',
                     headers: {
@@ -44,21 +60,21 @@ const Login = () => {
                     body: JSON.stringify(values),
                     credentials: 'include',
                 });
-                console.log(response);
-        
+
                 if (!response.ok) {
                     const errorData = await response.json();
                     throw new Error(errorData.detail || 'Ошибка при авторизации');
                 }
-        
+
                 const data = await response.json();
-                console.log('Успех:', data);
-                
-                localStorage.setItem('access_token', data.access_token);
+                dispatch(setToken(data.access_token));
                 setErrorMessage('');
+                navigate('/profile', { replace: true });
             } catch (error) {
-                console.error('Ошибка:', error);
+                dispatch(setError(error.message));
                 setErrorMessage(error.message || 'Ошибка при авторизации. Пожалуйста, проверьте свои данные.');
+            } finally {
+                dispatch(setLoading(false));
             }
         },
     });
@@ -67,6 +83,17 @@ const Login = () => {
         <>
             <h2>Авторизация</h2>
             {errorMessage && <div style={{ color: 'red' }}>{errorMessage}</div>}
+
+            {/* Модальное окно уведомления */}
+            {showRegistrationSuccess && (
+                <div className="notification-modal">
+                    <div className={`notification-content ${showRegistrationSuccess ? '' : 'exiting'}`}>
+                        <h3>Регистрация успешна!</h3>
+                        <p>Теперь вы можете войти в систему.</p>
+                    </div>
+                </div>
+            )}
+
             <form onSubmit={formik.handleSubmit}>
                 <div>
                     <label htmlFor="username">Имя пользователя</label>
@@ -82,6 +109,7 @@ const Login = () => {
                         <div style={{ color: 'red' }}>{formik.errors.username}</div>
                     ) : null}
                 </div>
+
                 <div>
                     <label htmlFor="email">Электронная почта</label>
                     <input
@@ -96,6 +124,7 @@ const Login = () => {
                         <div style={{ color: 'red' }}>{formik.errors.email}</div>
                     ) : null}
                 </div>
+
                 <div>
                     <label htmlFor="password">Пароль</label>
                     <input
@@ -110,9 +139,10 @@ const Login = () => {
                         <div style={{ color: 'red' }}>{formik.errors.password}</div>
                     ) : null}
                 </div>
-                <button type="submit">Войти</button>
+
+                <button type="submit">Авторизоваться</button>
             </form>
-            <a href="#">Регистрация</a>
+            <Link to="/register">Регистрация</Link>
         </>
     );
 };

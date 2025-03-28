@@ -6,6 +6,7 @@ const Tables = () => {
     const [tables, setTables] = useState([]);
     const [error, setError] = useState(null);
 
+
     useEffect(() => {
         document.title = "Таблицы";
         const fetchTables = async () => {

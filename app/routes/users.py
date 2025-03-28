@@ -36,7 +36,6 @@ async def register(user: Users):
 
 @router.post("/users/login")
 async def login(user: LoginUser , response: Response):
-    print(user)
     conn = await get_db_connection()
     try:
         existing_user = await conn.fetchrow(
@@ -52,11 +51,12 @@ async def login(user: LoginUser , response: Response):
             key="access_token",
             value=access_token,
             httponly=True,
-            secure=False,
-            samesite='None'
+            secure=True,
+            samesite='None',
+            max_age=3600
         )
 
-        return {"token_type": "bearer"}
+        return {"token_type": "bearer", "access_token": access_token}
 
     except Exception as e:
         print(f"Ошибка входа: {str(e)}")
@@ -67,8 +67,7 @@ async def login(user: LoginUser , response: Response):
 
 @router.put("/users/me")
 async def update_current_user(user: Users, _current_user: Users = Depends(get_current_user)):
-    user.password = hash_password(user.password)
-    print(_current_user)
+    user.password = hash_password(user.password) if user.password else _current_user['password']
     result = await update_element_request(user, _current_user['id'], None)
     return result
 
@@ -84,12 +83,6 @@ async def delete_current_user(_current_user: Users = Depends(get_current_user)):
 
 @router.get("/protected-route")
 async def protected_route(_current_user: Users = Depends(get_current_user)):
-    print(_current_user)
     return {
-        "message": f"Hello, {_current_user["username"]}!",
-        "payload":
-            {
-                "full_name": _current_user["full_name"],
-                "email": _current_user["email"],
-            }
+        "current_user": _current_user
     }

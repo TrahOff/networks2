@@ -4,9 +4,11 @@ import Home from '../pages/Home';
 import Tables from '../pages/Tables';
 import Login from '../pages/users/Login';
 import Students from '../pages/Students';
-// import User from '../pages/users/users';
 import Scholarship from '../pages/Base_scholarship';
 import Groups from '../pages/Groupes';
+import Register from '../pages/users/Register';
+import Profile from '../pages/users/Profile';
+import UniversityCoefficient from '../pages/UniversityCoefficient';
 
 export const RouterConfig = () => {
   return (
@@ -42,12 +44,23 @@ export const RouterConfig = () => {
             <Groups />
           </Layout>
         } />
-        {/* <Route path="/users" element={
+        <Route path="/register" element={
           <Layout>
-            <User />
+            <Register />
           </Layout>
         } />
-         */}
+        <Route path="/profile" element={
+          <Layout>
+            <Profile />
+          </Layout>
+        } />
+        <Route path="/university_coefficient" element={
+          <Layout>
+            <UniversityCoefficient />
+          </Layout>
+        } />
+
+
       </Routes>
     </BrowserRouter>
   );
